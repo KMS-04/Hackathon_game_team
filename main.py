@@ -450,9 +450,10 @@ def handle_collision(car, game_info, opponent_car=None):
                 car.bounce()
 
     # AI와 플레이어 차량 간 충돌 처리
-    if opponent_car and car.collide(pygame.mask.from_surface(opponent_car.img), opponent_car.x, opponent_car.y):
-        car.bounce()
-        opponent_car.bounce()
+    if opponent_car:
+        if car.collide(opponent_car.border_mask, opponent_car.x, opponent_car.y):
+            car.bounce()
+            opponent_car.bounce()
 
     # 현재 위치를 마지막 위치로 저장
     car.last_position = (car.x, car.y)
@@ -537,8 +538,9 @@ while run:
             player_car.apply_effect("boost")
             break
 
-    handle_collision(player_car, game_info)
-    handle_collision(ai_car, game_info)
+    # 플레이어와 AI 충돌 처리
+    handle_collision(player_car, game_info, opponent_car=ai_car)
+    handle_collision(ai_car, game_info, opponent_car=player_car)
 
     if game_info.game_finished():
         blit_text_center(WIN, MAIN_FONT, "You won the game!")

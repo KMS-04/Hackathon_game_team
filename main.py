@@ -35,7 +35,7 @@ FPS = 60
 class GameInfo:
     LEVELS = 3
     MIN_DISTANCE = 5000  # 최소 이동 거리 (픽셀)
-    MIN_TIME = 10  # 최소 경과 시간 (초)
+    MIN_TIME = 20  # 최소 경과 시간 (초)
 
     def __init__(self, level=1):
         self.level = level
@@ -116,11 +116,17 @@ class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
         self.img = self.IMG
         self.max_vel = max_vel
+        self.original_max_vel = max_vel  # 원래 속도 저장
         self.vel = 0
         self.rotation_vel = rotation_vel
         self.angle = 270  # 초기 방향
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
+
+        self.boost_stack = 0  # 가속 효과 누적 횟수
+        self.slow_stack = 0  # 감속 효과 누적 횟수
+        self.effect_end_times = []  # 효과 종료 시간 저장
+
         self.boosted = False
         self.slowed = False
         self.effect_end_time = 0
@@ -180,20 +186,31 @@ class AbstractCar:
 
     def apply_effect(self, effect_type):
         if effect_type == "boost":
-            self.boosted = True
-            self.max_vel *= 1.3
+            self.boost_stack += 1  # 가속 효과 누적
+            self.max_vel = self.original_max_vel * (1.3 ** self.boost_stack)
         elif effect_type == "trap":
-            self.slowed = True
-            self.max_vel *= 0.7
-        self.effect_end_time = time.time() + 3
+            self.slow_stack += 1  # 감속 효과 누적
+            self.max_vel = self.original_max_vel * (0.7 ** self.slow_stack)
+        
+        # 각 효과의 종료 시간을 개별적으로 관리
+        self.effect_end_times.append((time.time() + 3, effect_type))  # 효과 타입과 종료 시간 저장
 
     def clear_effect(self):
-        if self.boosted:
-            self.max_vel /= 1.3
-            self.boosted = False
-        if self.slowed:
-            self.max_vel /= 0.7
-            self.slowed = False
+        current_time = time.time()
+        
+        # 유효한 효과만 유지
+        self.effect_end_times = [
+            (end_time, effect_type) for end_time, effect_type in self.effect_end_times if end_time > current_time
+        ]
+        
+        # 효과 스택 초기화
+        self.boost_stack = sum(1 for _, effect_type in self.effect_end_times if effect_type == "boost")
+        self.slow_stack = sum(1 for _, effect_type in self.effect_end_times if effect_type == "trap")
+        
+        # 스택을 기반으로 속도 계산
+        self.max_vel = self.original_max_vel * (1.3 ** self.boost_stack) * (0.7 ** self.slow_stack)
+
+
     
     def bounce(self):
         """
@@ -443,6 +460,7 @@ def handle_collision(car, game_info, opponent_car=None):
 
     # 현재 위치를 마지막 위치로 저장
     car.last_position = (car.x, car.y)
+
 
 # Main Functionality
 run = True

@@ -34,7 +34,7 @@ FPS = 60
 # Game Info Class
 class GameInfo:
     LEVELS = 3
-    MIN_DISTANCE = 50  # 최소 이동 거리 (픽셀)
+    MIN_DISTANCE = 5000  # 최소 이동 거리 (픽셀)
     MIN_TIME = 10  # 최소 경과 시간 (초)
 
     def __init__(self, level=1):
@@ -409,6 +409,9 @@ def handle_collision(car, game_info, opponent_car=None):
         # 결승선 충돌 확인
         finish_poi = car.collide(FINISH_MASK, *FINISH_POSITION)
         if finish_poi:
+            if not game_info.is_ready_for_finish(car):
+                car.bounce()  # 조건 충족 안 될 경우 반사 처리
+                return
             if isinstance(car, PlayerCar):
                 if game_info.level < game_info.LEVELS:  # 마지막 단계가 아닌 경우
                     game_info.next_level()

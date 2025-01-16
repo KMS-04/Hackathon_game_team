@@ -1,10 +1,35 @@
-# cars.py
+import pygame
 import math
 import time
-from constants import RED_CAR, GREEN_CAR
-from utils import blit_rotate_center, create_border_mask
 
-# Abstract Car Class
+from utils import blit_rotate_center
+
+def create_border_mask(surface):
+    """
+    차량의 테두리 마스크 생성
+    :param surface: 차량 이미지 (pygame.Surface)
+    :return: 테두리 마스크 (pygame.Mask)
+    """
+    original_mask = pygame.mask.from_surface(surface)
+    border_mask = pygame.mask.Mask(surface.get_size())
+
+    for x in range(surface.get_width()):
+        for y in range(surface.get_height()):
+            if original_mask.get_at((x, y)) == 1:
+                # 테두리의 픽셀만 포함
+                if (
+                    x == 0 or y == 0 or
+                    x == surface.get_width() - 1 or y == surface.get_height() - 1 or
+                    original_mask.get_at((x - 1, y)) == 0 or
+                    original_mask.get_at((x + 1, y)) == 0 or
+                    original_mask.get_at((x, y - 1)) == 0 or
+                    original_mask.get_at((x, y + 1)) == 0
+                ):
+                    border_mask.set_at((x, y), 1)
+
+    return border_mask
+
+
 class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
         self.img = self.IMG
@@ -17,7 +42,7 @@ class AbstractCar:
         self.acceleration = 0.1
 
         self.boost_stack = 0  # 가속 효과 누적 횟수
-        self.slow_stack = 0  # 감속 효과 누적 횟수
+        self.slow_stack = 0   # 감속 효과 누적 횟수
         self.effect_end_times = []  # 효과 종료 시간 저장
 
         self.boosted = False
@@ -39,7 +64,6 @@ class AbstractCar:
     def move_forward(self):
         self.vel = min(self.vel + self.acceleration, self.max_vel)
         self.move()
-
 
     def move_backward(self):
         self.vel = max(self.vel - self.acceleration, -self.max_vel / 2)
@@ -87,7 +111,7 @@ class AbstractCar:
         
         # 각 효과의 종료 시간을 개별적으로 관리
         self.effect_end_times.append((time.time() + 3, effect_type))  # 효과 타입과 종료 시간 저장
-        
+
     def clear_effect(self):
         current_time = time.time()
         
@@ -96,15 +120,13 @@ class AbstractCar:
             (end_time, effect_type) for end_time, effect_type in self.effect_end_times if end_time > current_time
         ]
         
-        # 효과 스택 초기화
+        # 효과 스택 다시 계산
         self.boost_stack = sum(1 for _, effect_type in self.effect_end_times if effect_type == "boost")
         self.slow_stack = sum(1 for _, effect_type in self.effect_end_times if effect_type == "trap")
         
-        # 스택을 기반으로 속도 계산
+        # 스택을 기반으로 속도 재계산
         self.max_vel = self.original_max_vel * (1.3 ** self.boost_stack) * (0.7 ** self.slow_stack)
 
-
-    
     def bounce(self):
         """
         충돌 시 속도를 반전시키는 메서드
@@ -112,10 +134,13 @@ class AbstractCar:
         self.vel = -self.vel
         self.move()
 
-# Player Car Class
+
 class PlayerCar(AbstractCar):
-    IMG = RED_CAR
+    IMG = None  # 실제 이미지는 main에서 로드 후 클래스 속성에 할당
     START_POS = (490, 10)
+
+    def __init__(self, max_vel, rotation_vel):
+        super().__init__(max_vel, rotation_vel)
 
     def reset(self):
         self.x, self.y = self.START_POS
@@ -123,9 +148,6 @@ class PlayerCar(AbstractCar):
         self.vel = 0
         self.boosted = False
         self.slowed = False
-
-    def __init__(self, max_vel, rotation_vel):
-        super().__init__(max_vel, rotation_vel)
 
     def reduce_speed(self):
         if self.vel > 0:
@@ -136,15 +158,19 @@ class PlayerCar(AbstractCar):
         if abs(self.vel) > 0.01:  # 속도가 낮으면 이동하지 않음
             self.move()
 
-
     def bounce(self):
         self.vel = -self.vel
         self.move()
 
-# AI Car Class
+
 class AICar(AbstractCar):
-    IMG = GREEN_CAR
+    IMG = None  # 실제 이미지는 main에서 로드 후 클래스 속성에 할당
     START_POS = (490, 50)
+
+    def __init__(self, max_vel, rotation_vel, path):
+        super().__init__(max_vel, rotation_vel)
+        self.path = path
+        self.current_point = 0
 
     def reset(self):
         self.x, self.y = self.START_POS
@@ -152,21 +178,17 @@ class AICar(AbstractCar):
         self.vel = 0
         self.boosted = False
         self.slowed = False
-
-    def __init__(self, max_vel, rotation_vel, path):
-        super().__init__(max_vel, rotation_vel)
-        self.path = path
         self.current_point = 0
 
     def update_path_point(self):
-        """현재 경로 점에 도달했는지 확인하고, 다음 경로 점으로 이동"""
+        """현재 경로 점에 도달했는지 확인 후, 다음 경로 점으로 이동"""
         if self.current_point >= len(self.path):
             return
 
         target_x, target_y = self.path[self.current_point]
         dist = math.sqrt((self.x - target_x) ** 2 + (self.y - target_y) ** 2)
 
-        if dist < 20:  # 자동차가 목표 지점에 도달했으면
+        if dist < 20:  # 자동차가 목표 지점에 가까워졌으면
             self.current_point += 1
 
     def calculate_angle(self):

@@ -409,55 +409,37 @@ def handle_collision(car, game_info, opponent_car=None):
         # 결승선 충돌 확인
         finish_poi = car.collide(FINISH_MASK, *FINISH_POSITION)
         if finish_poi:
-            prev_y = car.last_position[1]
-            current_y = car.y
-
-            # 차량이 결승선 중심 근처에 있는지 추가 확인
-            finish_x_center = FINISH_POSITION[0] + FINISH.get_width() // 2
-            car_x_center = car.x + car.img.get_width() // 2
-            is_near_center = abs(finish_x_center - car_x_center) < 30  # 20픽셀 이내면 허용
-
-            # 각도 조건 추가 (각도가 너무 틀어지지 않은 경우 허용)
-            angle_tolerance = 180  # 허용되는 각도 오차
-            angle_difference = abs((car.angle - 270) % 360)  # 오른쪽 방향 기준
-            is_angle_valid = angle_difference <= angle_tolerance or angle_difference >= 360 - angle_tolerance
-
-            # 결승선 통과 방향 확인 (전진 중일 때만 인정)
-            if current_y > prev_y and car.vel > 0:  # 전진 중이며 아래 방향으로 통과
-                if isinstance(car, PlayerCar):
-                    if game_info.level < game_info.LEVELS:  # 마지막 단계가 아닌 경우
-                        game_info.next_level()
-                        car.reset()
-                        if opponent_car:
-                            opponent_car.reset()
-                    else:  # 최종 단계 완료
-                        blit_text_center(WIN, MAIN_FONT, "You won against AI!!")
-                        pygame.display.update()
-                        pygame.time.wait(5000)
-                        game_info.reset()
-                        car.reset()
-                        if opponent_car:
-                            opponent_car.reset()
-                else:
-                    blit_text_center(WIN, MAIN_FONT, "AI Wins!")
+            if isinstance(car, PlayerCar):
+                if game_info.level < game_info.LEVELS:  # 마지막 단계가 아닌 경우
+                    game_info.next_level()
+                    car.reset()
+                    if opponent_car:
+                        opponent_car.reset()
+                else:  # 최종 단계 완료
+                    blit_text_center(WIN, MAIN_FONT, "You won against AI!!")
                     pygame.display.update()
                     pygame.time.wait(5000)
                     game_info.reset()
                     car.reset()
                     if opponent_car:
                         opponent_car.reset()
-            else:  # 조건 미충족 시 반사
-                car.bounce()
+            else:
+                blit_text_center(WIN, MAIN_FONT, "AI Wins!")
+                pygame.display.update()
+                pygame.time.wait(5000)
+                game_info.reset()
+                car.reset()
+                if opponent_car:
+                    opponent_car.reset()
 
     # AI와 플레이어 차량 간 충돌 처리
-    if opponent_car and car.collide(pygame.mask.from_surface(opponent_car.img), opponent_car.x, opponent_car.y):
-        car.bounce()
-        opponent_car.bounce()
+    if opponent_car:
+        if car.collide(opponent_car.border_mask, opponent_car.x, opponent_car.y):
+            car.bounce()
+            opponent_car.bounce()
 
     # 현재 위치를 마지막 위치로 저장
     car.last_position = (car.x, car.y)
-
-
 
 # Main Functionality
 run = True
@@ -465,8 +447,8 @@ clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0, 0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
 
 # Adjust player and AI car speeds here
-player_car = PlayerCar(max_vel=4, rotation_vel=4.5)  # 플레이어 차량 속도 조정
-ai_car = AICar(max_vel=4, rotation_vel=4.5, path=[(200, 200), (300, 300), (400, 200), (300, 100)])  # AI 차량 속도 조정
+player_car = PlayerCar(max_vel=4, rotation_vel=6)  # 플레이어 차량 속도 조정
+ai_car = AICar(max_vel=4, rotation_vel=6, path=[(200, 200), (300, 300), (400, 200), (300, 100)])  # AI 차량 속도 조정
 game_info = GameInfo()
 
 # Generate item positions
@@ -537,8 +519,9 @@ while run:
             player_car.apply_effect("boost")
             break
 
-    handle_collision(player_car, game_info)
-    handle_collision(ai_car, game_info)
+    # 플레이어와 AI 충돌 처리
+    handle_collision(player_car, game_info, opponent_car=ai_car)
+    handle_collision(ai_car, game_info, opponent_car=player_car)
 
     if game_info.game_finished():
         blit_text_center(WIN, MAIN_FONT, "You won the game!")

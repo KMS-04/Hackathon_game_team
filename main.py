@@ -3,6 +3,10 @@ import random
 import time
 import math
 
+import torch
+import numpy as np
+from dqn_agent import DQNAgent  # ← 본인의 DQN 에이전트 파일 경로
+
 from utils import scale_image, blit_text_center
 from cars import PlayerCar, AICar
 from cars import create_border_mask
@@ -64,7 +68,7 @@ images = [
 # 게임 정보, 플레이어/AI 차량 생성
 game_info = GameInfo()
 player_car = PlayerCar(max_vel=4, rotation_vel=6)
-ai_car = AICar(max_vel=4, rotation_vel=6, path=[(200, 200), (300, 300), (400, 200), (300, 100)])
+ai_car = AICar(max_vel=4, rotation_vel=6, path=[])
 
 # 아이템(트랩, 부스트) 위치 생성
 BOOST_WIDTH, BOOST_HEIGHT = BOOST.get_width(), BOOST.get_height()
@@ -72,6 +76,12 @@ TRAP_WIDTH, TRAP_HEIGHT = TRAP.get_width(), TRAP.get_height()
 
 traps = items.generate_random_positions(5, TRAP_WIDTH, TRAP_HEIGHT)
 boosts = items.generate_random_positions(5, BOOST_WIDTH, BOOST_HEIGHT)
+
+# main.py (일부)
+agent = DQNAgent(state_dim=5, action_dim=4)  # state_dim=5, action_dim=4 가정
+agent.q_network.load_state_dict(torch.load("racing_dqn.pth"))
+agent.q_network.eval()
+agent.eps = 0.0  # 탐색 종료 (학습된 정책만 사용)
 
 
 def draw(win, images, player_car, ai_car, game_info, traps, boosts):
@@ -163,6 +173,19 @@ def handle_collision(car, game_info, opponent_car=None):
     # 마지막 위치 업데이트
     car.last_position = (car.x, car.y)
 
+def apply_dqn_action(car, action):
+    # 0: 감속/가만히, 1: 전진, 2: 좌회전+전진, 3: 우회전+전진
+    if action == 0:
+        car.reduce_speed()
+    elif action == 1:
+        car.move_forward()
+    elif action == 2:
+        car.rotate(left=True)
+        car.move_forward()
+    elif action == 3:
+        car.rotate(right=True)
+        car.move_forward()
+
 
 def main():
     run = True
@@ -196,9 +219,18 @@ def main():
                 run = False
                 break
 
-        # 플레이어 이동, AI 이동
+        # 플레이어 이동 
         move_player(player_car)
-        ai_car.move()
+
+        # AI 이동
+        #  1) 상태 관측
+        state = np.array([ai_car.x, ai_car.y, ai_car.vel, ai_car.angle, ai_car.total_distance], dtype=np.float32)
+        #  2) 액션 받기
+        action = agent.select_action(state)
+        #  3) 액션 적용
+        apply_dqn_action(ai_car, action)
+
+
 
         # 트랩 충돌
         for trap_pos in traps:

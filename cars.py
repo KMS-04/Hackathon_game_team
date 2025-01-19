@@ -133,6 +133,15 @@ class AbstractCar:
         """
         self.vel = -self.vel
         self.move()
+    
+    def reduce_speed(self):
+        if self.vel > 0:
+            self.vel = max(self.vel - self.acceleration / 2, 0)
+        elif self.vel < 0:
+            self.vel = min(self.vel + self.acceleration / 2, 0)
+
+        if abs(self.vel) > 0.01:
+            self.move()
 
 
 class PlayerCar(AbstractCar):
